@@ -2,13 +2,13 @@ module GiraffeHATEOASEntryPoint.App
 
 open System
 open System.IO
-open System.Text.Json
 open Microsoft.AspNetCore.Builder
 open Microsoft.AspNetCore.Cors.Infrastructure
 open Microsoft.AspNetCore.Hosting
 open Microsoft.Extensions.Hosting
 open Microsoft.Extensions.Logging
 open Microsoft.Extensions.DependencyInjection
+open Newtonsoft.Json
 open Giraffe
 
 
@@ -16,10 +16,25 @@ open Giraffe
 // Models
 // ---------------------------------
 
-type Message =
-    {
-        Text : string
-    }
+type Endpoint = Endpoint of string
+
+type AdultEndpoint = AdultEndpoint of Endpoint
+type ChildEndpoint = ChildEndpoint of Endpoint
+type AuthorizationEndpoint = AuthorizationEndpoint of Endpoint
+
+type Environment = 
+    | Local
+    | Qualification
+    | Demonstration
+    | Production
+
+type EnvironmentApi = {
+    Adults : AdultEndpoint
+    Childs : ChildEndpoint
+    Authorization : AuthorizationEndpoint
+}
+
+type APIDescription = (Environment * EnvironmentApi) list
 
 [<CLIMutable>]
 type Adult =
@@ -51,12 +66,22 @@ type Adult =
 // ---------------------------------
 module WebApp =
     let parsingErrorHandler err = RequestErrors.BAD_REQUEST err
+    let apiDescription : APIDescription =
+        [ ( Local, { 
+            Adults =  ("https://localhost:5001/adult" |> Endpoint |> AdultEndpoint); 
+            Childs = ("https://localhost:5001/child" |> Endpoint |> ChildEndpoint); 
+            Authorization = ("https://localhost:5001/auth" |> Endpoint |> AuthorizationEndpoint ); 
+            })]
     
     let webApp =
         choose [
             POST >=>
                 choose [
                     route "/person" >=> bindJson<Adult> (validateModel Successful.OK)
+                ]
+            GET >=>
+                choose [
+                    route "/entrypoint" >=> (apiDescription |> JsonConvert.SerializeObject  |> Successful.OK)
                 ]
             setStatusCode 404 >=> text "Route not Found" ]
 

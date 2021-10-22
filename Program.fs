@@ -22,19 +22,31 @@ type AdultEndpoint = AdultEndpoint of Endpoint
 type ChildEndpoint = ChildEndpoint of Endpoint
 type AuthorizationEndpoint = AuthorizationEndpoint of Endpoint
 
-type Environment = 
+type Environment =
     | Local
     | Qualification
     | Demonstration
     | Production
 
 type EnvironmentApi = {
-    Adults : AdultEndpoint
-    Childs : ChildEndpoint
+    Adults : AdultEndpoint option
+    Childs : ChildEndpoint option
     Authorization : AuthorizationEndpoint
 }
 
 type APIDescription = (Environment * EnvironmentApi) list
+
+type EndpointDto = {
+    Name : string
+    Url : string
+}
+type EnvironmentsDto = {
+    Environement : string
+    Apis : EndpointDto list 
+}
+type APIDescriptionDto = {
+    Infrastructure : EnvironmentsDto list
+}
 
 [<CLIMutable>]
 type Adult =
@@ -66,10 +78,31 @@ type Adult =
 // ---------------------------------
 module WebApp =
     let parsingErrorHandler err = RequestErrors.BAD_REQUEST err
+    
+    let mapApiDescriptionToDto(api : APIDescription) : APIDescriptionDto =
+        {
+            Infrastructure = [
+                {
+                    Environement = nameof Local 
+                    Apis = [
+                        {
+                            Name = "adults"
+                            Url = "https://localhost:5001/adult"
+                        }
+                    ]
+                }
+            ]
+        }
+    
     let apiDescription : APIDescription =
         [ ( Local, { 
-            Adults =  ("https://localhost:5001/adult" |> Endpoint |> AdultEndpoint); 
-            Childs = ("https://localhost:5001/child" |> Endpoint |> ChildEndpoint); 
+            Adults =  ("https://localhost:5001/adult" |> Endpoint |> AdultEndpoint |> Some); 
+            Childs = ("https://localhost:5001/child" |> Endpoint |> ChildEndpoint |> Some); 
+            Authorization = ("https://localhost:5001/auth" |> Endpoint |> AuthorizationEndpoint ); 
+            });
+        ( Qualification, { 
+            Adults =  None; 
+            Childs = None; 
             Authorization = ("https://localhost:5001/auth" |> Endpoint |> AuthorizationEndpoint ); 
             })]
     
@@ -81,7 +114,7 @@ module WebApp =
                 ]
             GET >=>
                 choose [
-                    route "/entrypoint" >=> (apiDescription |> JsonConvert.SerializeObject  |> Successful.OK)
+                    route "/entrypoint" >=> (mapApiDescriptionToDto apiDescription |> Successful.OK)
                 ]
             setStatusCode 404 >=> text "Route not Found" ]
 

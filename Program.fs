@@ -75,7 +75,7 @@ module Dto =
 // ---------------------------------
 module WebApp =
     let parsingErrorHandler err = RequestErrors.BAD_REQUEST err
-    
+
     let OptionAdultApiToString (endpoint)  =
         match endpoint with
         | None -> ""
@@ -90,7 +90,7 @@ module WebApp =
         [
             (endpoint.Adults |> (fun x -> { Name = "adults"; Url = x |> OptionAdultApiToString}));
             (endpoint.Childs|> (fun x -> { Name = "children"; Url = x |> OptionChildApiToString}));
-            (endpoint.Authorization |> (fun x -> { Name = "auth"; Url = x |> string}));
+            (endpoint.Authorization |> (fun (AuthorizationEndpoint x) -> { Name = "auth"; Url = x |> string}));
         ]
 
     let mapApiDescriptionToDto(api : (Environment * Endpoints) list) : Dto.APIDescriptionDto =

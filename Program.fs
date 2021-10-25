@@ -8,7 +8,6 @@ open Microsoft.AspNetCore.Hosting
 open Microsoft.Extensions.Hosting
 open Microsoft.Extensions.Logging
 open Microsoft.Extensions.DependencyInjection
-open Newtonsoft.Json
 open Giraffe
 
 
@@ -16,11 +15,9 @@ open Giraffe
 // Models
 // ---------------------------------
 
-type Endpoint = Endpoint of string
-
-type AdultEndpoint = AdultEndpoint of Endpoint
-type ChildEndpoint = ChildEndpoint of Endpoint
-type AuthorizationEndpoint = AuthorizationEndpoint of Endpoint
+type AdultEndpoint = AdultEndpoint of string
+type ChildEndpoint = ChildEndpoint of string
+type AuthorizationEndpoint = AuthorizationEndpoint of string
 
 type Environment =
     | Local
@@ -28,25 +25,15 @@ type Environment =
     | Demonstration
     | Production
 
-type EnvironmentApi = {
-    Adults : AdultEndpoint option
+type Endpoints = {
+    Adults : AdultEndpoint option 
     Childs : ChildEndpoint option
     Authorization : AuthorizationEndpoint
 }
 
-type APIDescription = (Environment * EnvironmentApi) list
+type APIDescription = (Environment * Endpoints) list
 
-type EndpointDto = {
-    Name : string
-    Url : string
-}
-type EnvironmentsDto = {
-    Environement : string
-    Apis : EndpointDto list 
-}
-type APIDescriptionDto = {
-    Infrastructure : EnvironmentsDto list
-}
+
 
 [<CLIMutable>]
 type Adult =
@@ -72,6 +59,16 @@ type Adult =
             | Some msg -> Error (RequestErrors.BAD_REQUEST msg)
             | None     -> Ok this
 
+module Dto =
+    type EndpointDto = {
+        Name : string
+        Url : string
+    }
+    type EnvironmentsDto = {
+        Environment : string
+        Apis : EndpointDto list 
+    }
+    type APIDescriptionDto = EnvironmentsDto list
 
 // ---------------------------------
 // Web app
@@ -79,31 +76,37 @@ type Adult =
 module WebApp =
     let parsingErrorHandler err = RequestErrors.BAD_REQUEST err
     
-    let mapApiDescriptionToDto(api : APIDescription) : APIDescriptionDto =
-        {
-            Infrastructure = [
-                {
-                    Environement = nameof Local 
-                    Apis = [
-                        {
-                            Name = "adults"
-                            Url = "https://localhost:5001/adult"
-                        }
-                    ]
-                }
-            ]
-        }
+    let OptionAdultApiToString (endpoint)  =
+        match endpoint with
+        | None -> ""
+        | Some (AdultEndpoint e) -> e |> string
+
+    let OptionChildApiToString (endpoint)  =
+        match endpoint with
+        | None -> ""
+        | Some (ChildEndpoint e) -> e |> string
+
+    let endpointToListOfEndpoint (endpoint: Endpoints) : Dto.EndpointDto list =
+        [
+            (endpoint.Adults |> (fun x -> { Name = "adults"; Url = x |> OptionAdultApiToString}));
+            (endpoint.Childs|> (fun x -> { Name = "children"; Url = x |> OptionChildApiToString}));
+            (endpoint.Authorization |> (fun x -> { Name = "auth"; Url = x |> string}));
+        ]
+
+    let mapApiDescriptionToDto(api : (Environment * Endpoints) list) : Dto.APIDescriptionDto =
+        api
+        |> List.map (fun (env, detail) -> { Environment = env |> string; Apis = endpointToListOfEndpoint detail})
     
     let apiDescription : APIDescription =
         [ ( Local, { 
-            Adults =  ("https://localhost:5001/adult" |> Endpoint |> AdultEndpoint |> Some); 
-            Childs = ("https://localhost:5001/child" |> Endpoint |> ChildEndpoint |> Some); 
-            Authorization = ("https://localhost:5001/auth" |> Endpoint |> AuthorizationEndpoint ); 
+            Adults =  (Some (AdultEndpoint "https://localhost:5001/adult" )); 
+            Childs = ("https://localhost:5001/child" |> ChildEndpoint |> Some); 
+            Authorization = ("https://localhost:5001/auth" |> AuthorizationEndpoint ); 
             });
         ( Qualification, { 
             Adults =  None; 
             Childs = None; 
-            Authorization = ("https://localhost:5001/auth" |> Endpoint |> AuthorizationEndpoint ); 
+            Authorization = ("https://localhost:5001/auth" |> AuthorizationEndpoint ); 
             })]
     
     let webApp =
